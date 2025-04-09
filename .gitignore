@@ -1,0 +1,18 @@
+dataset/
+TrainModel/
+
+
+*.h5
+*.hdf5
+*.ckpt
+
+
+# Plot images
+*.png
+*.jpg
+*.webp
+*.avif
+*.jpeg
+
+Backend/.env
+
