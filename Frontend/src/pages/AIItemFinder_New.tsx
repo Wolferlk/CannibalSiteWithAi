@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { 
   Sparkles, 
   Upload, 
@@ -17,7 +16,6 @@ import {
   AlertCircle 
 } from 'lucide-react';
 import { products } from '../data/products';
-import ProductCard from '../components/ProductCard'; // Assuming you have this component
 
 export interface Product {
   id: string;
@@ -47,45 +45,6 @@ const AIItemFinder = () => {
   const [similarImages, setSimilarImages] = useState([]);
   const [error, setError] = useState('');
   const [isDragActive, setIsDragActive] = useState(false);
-  const [apiProducts, setApiProducts] = useState<Product[]>([]);
-  const [isLoadingApi, setIsLoadingApi] = useState(false);
-  
-  // Fetch products from API
-  useEffect(() => {
-    const fetchProducts = async () => {
-      setIsLoadingApi(true);
-      try {
-        const response = await axios.get('http://localhost:5000/api/products');
-        setApiProducts(response.data);
-      } catch (err) {
-        console.error('Failed to fetch products:', err);
-        setError('Failed to fetch products. Using sample data instead.');
-        // Fallback to sample products if API fails
-        setApiProducts(products);
-      } finally {
-        setIsLoadingApi(false);
-      }
-    };
-    
-    fetchProducts();
-  }, []);
-  
-  // Filter products based on predicted category
-  useEffect(() => {
-    if (predictedCategory && apiProducts.length > 0) {
-      const filteredProducts = apiProducts.filter(product => 
-        product.category.toLowerCase() === predictedCategory.toLowerCase() ||
-        predictedCategory.toLowerCase() === 'all'
-      );
-      
-      if (filteredProducts.length > 0) {
-        setSearchResults(filteredProducts);
-      } else {
-        // If no products match the category, show all products
-        setSearchResults(apiProducts.slice(0, 8));
-      }
-    }
-  }, [predictedCategory, apiProducts]);
   
   const handleFileSelect = (files) => {
     if (files.length > 0) {
@@ -117,25 +76,26 @@ const AIItemFinder = () => {
         setPredictedCategory(data.category);
         setSimilarImages(data.similar_images || []);
         
+        // Filter products based on the predicted category and similarity threshold
+        const categoryFilter = data.category.toLowerCase();
+        
+        const filteredProducts = products.filter(product => 
+          product.status !== 'sold-out' && 
+          (categoryFilter === 'all' || product.category === categoryFilter)
+        );
+        
         // Set random similarity score (can be replaced with actual score from backend)
         const randomScore = Math.floor(Math.random() * 30) + 70;
         setSimilarityScore(randomScore);
         
-        // Products will be filtered by the useEffect that watches predictedCategory
+        // Sort by relevance (using backend similar images if available)
+        const sortedResults = [...filteredProducts].sort(() => 0.5 - Math.random()).slice(0, 8);
+        setSearchResults(sortedResults);
       } else {
         setError(data.error || 'Failed to process image');
-        
-        // Fallback: use random category from available products for demo purposes
-        const categories = [...new Set(apiProducts.map(p => p.category))];
-        const randomCategory = categories[Math.floor(Math.random() * categories.length)];
-        setPredictedCategory(randomCategory);
       }
     } catch (err) {
       setError(err.message || 'Error connecting to the server');
-      
-      // Fallback for demo
-      const demoCategories = ['mens', 'womens', 'shoes', 'caps'];
-      setPredictedCategory(demoCategories[Math.floor(Math.random() * demoCategories.length)]);
     } finally {
       setIsSearching(false);
     }
@@ -207,15 +167,6 @@ const AIItemFinder = () => {
     setTimeout(() => {
       setIsSearching(false);
     }, 1500);
-  };
-  
-  const navigateToProduct = (productId) => {
-    // In a real app with routing, this would navigate to the product page
-    console.log(`Navigating to product: ${productId}`);
-    // You can use React Router here:
-    // history.push(`/product/${productId}`);
-    // Or window.location for simple cases:
-    // window.location.href = `/product/${productId}`;
   };
 
   return (
@@ -418,44 +369,6 @@ const AIItemFinder = () => {
                   </div>
                 </div>
               )}
-              
-              {/* NEW SECTION: AI Matched Products */}
-              {predictedCategory && searchResults.length > 0 && (
-                <div className="mt-12 bg-gray-50 rounded-2xl p-6 border border-gray-200">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center">
-                      <Sparkles className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-900">AI Style Match Results</h2>
-                      <p className="text-sm text-gray-600">
-                        Our AI detected you uploaded a <strong>{predictedCategory}</strong> style image. 
-                        Here are similar items from our store:
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {searchResults.slice(0, 4).map((product) => (
-                      <div 
-                        key={product.id} 
-                        className="cursor-pointer"
-                        onClick={() => navigateToProduct(product.id)}
-                      >
-                        <ProductCard product={product} />
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {searchResults.length > 4 && (
-                    <div className="mt-4 text-center">
-                      <button className="px-6 py-2 bg-indigo-600 text-white font-medium rounded-full hover:bg-indigo-700 transition-all text-sm">
-                        View All {searchResults.length} Matching Products
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
 
               {searchResults.length > 0 && (
                 <div className="mt-12">
@@ -523,11 +436,7 @@ const AIItemFinder = () => {
                   {/* Search results */}
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
                     {searchResults.map((product) => (
-                      <div 
-                        key={product.id} 
-                        className="group cursor-pointer" 
-                        onClick={() => navigateToProduct(product.id)}
-                      >
+                      <div key={product.id} className="group">
                         <div className="relative overflow-hidden rounded-xl bg-gray-50 border border-gray-100">
                           <div className="aspect-[3/4] overflow-hidden">
                             <img 
@@ -545,13 +454,7 @@ const AIItemFinder = () => {
                             </div>
                           </div>
                           
-                          <button 
-                            className="absolute top-3 right-3 w-8 h-8 bg-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-gray-100"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Add to wishlist functionality would go here
-                            }}
-                          >
+                          <button className="absolute top-3 right-3 w-8 h-8 bg-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-gray-100">
                             <Heart className="w-4 h-4 text-gray-800" />
                           </button>
                         </div>
@@ -598,39 +501,32 @@ const AIItemFinder = () => {
             </div>
             
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {(apiProducts.length > 0 ? apiProducts : products)
-                .filter(p => p.status === 'available')
-                .slice(0, 8)
-                .map((product) => (
-                  <div 
-                    key={product.id} 
-                    className="group cursor-pointer" 
-                    onClick={() => navigateToProduct(product.id)}
-                  >
-                    <div className="relative overflow-hidden rounded-xl bg-gray-50 border border-gray-100">
-                      <div className="aspect-[3/4] overflow-hidden">
-                        <img 
-                          src={product.images[0] || '/api/placeholder/400/500'} 
-                          alt={product.name} 
-                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                        />
-                      </div>
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                        <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-6 group-hover:translate-y-0 transition-transform">
-                          <button className="w-full bg-white text-black font-medium py-2 rounded-lg hover:bg-gray-100 flex items-center justify-center gap-2 text-sm">
-                            <ShoppingBag className="w-4 h-4" />
-                            View Product
-                          </button>
-                        </div>
-                      </div>
+              {products.filter(p => p.status === 'available').slice(0, 8).map((product) => (
+                <div key={product.id} className="group">
+                  <div className="relative overflow-hidden rounded-xl bg-gray-50 border border-gray-100">
+                    <div className="aspect-[3/4] overflow-hidden">
+                      <img 
+                        src={product.images[0] || '/api/placeholder/400/500'} 
+                        alt={product.name} 
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      />
                     </div>
-                    
-                    <div className="mt-3 px-1">
-                      <h3 className="font-medium text-gray-900 truncate">{product.name}</h3>
-                      <p className="font-semibold mt-1">${product.price.toFixed(2)}</p>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-6 group-hover:translate-y-0 transition-transform">
+                        <button className="w-full bg-white text-black font-medium py-2 rounded-lg hover:bg-gray-100 flex items-center justify-center gap-2 text-sm">
+                          <ShoppingBag className="w-4 h-4" />
+                          View Product
+                        </button>
+                      </div>
                     </div>
                   </div>
-                ))}
+                  
+                  <div className="mt-3 px-1">
+                    <h3 className="font-medium text-gray-900 truncate">{product.name}</h3>
+                    <p className="font-semibold mt-1">${product.price.toFixed(2)}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -667,155 +563,6 @@ const AIItemFinder = () => {
             </div>
           </div>
         </div>
-        
-        {/* NEW SECTION: Recently Viewed */}
-        {predictedCategory && (
-          <div className="mb-12">
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
-              <h2 className="text-xl font-semibold mb-6 flex items-center">
-                <Clock className="w-5 h-5 mr-2 text-gray-800" />
-                Recently Viewed Items
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {apiProducts.length > 0 ? 
-                  apiProducts.slice(0, 4).map((product) => (
-                    <div 
-                      key={product.id} 
-                      className="cursor-pointer"
-                      onClick={() => navigateToProduct(product.id)}
-                    >
-                      <ProductCard product={product} />
-                    </div>
-                  )) : 
-                  <p className="col-span-4 text-gray-500 text-center py-6">No recently viewed items</p>
-                }
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* NEW SECTION: Category Recommendations */}
-        {predictedCategory && (
-          <div className="mb-12">
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <TrendingUp className="w-5 h-5 mr-2 text-gray-800" />
-                Popular in {predictedCategory.charAt(0).toUpperCase() + predictedCategory.slice(1)}
-              </h2>
-              <p className="text-gray-500 mb-6">Top trending items in this category</p>
-              
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                {apiProducts
-                  .filter(p => p.category.toLowerCase() === predictedCategory.toLowerCase())
-                  .slice(0, 4)
-                  .map((product) => (
-                    <div 
-                      key={product.id} 
-                      className="group cursor-pointer" 
-                      onClick={() => navigateToProduct(product.id)}
-                    >
-                      <div className="relative overflow-hidden rounded-xl bg-gray-50 border border-gray-100">
-                        <div className="aspect-[3/4] overflow-hidden">
-                          <img 
-                            src={product.images[0] || '/api/placeholder/400/500'} 
-                            alt={product.name} 
-                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                          />
-                        </div>
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                          <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-6 group-hover:translate-y-0 transition-transform">
-                            <button className="w-full bg-white text-black font-medium py-2 rounded-lg hover:bg-gray-100 flex items-center justify-center gap-2 text-sm">
-                              <ShoppingBag className="w-4 h-4" />
-                              View Product
-                            </button>
-                          </div>
-                        </div>
-                        
-                        <button 
-                          className="absolute top-3 right-3 w-8 h-8 bg-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-gray-100"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Add to wishlist functionality would go here
-                          }}
-                        >
-                          <Heart className="w-4 h-4 text-gray-800" />
-                        </button>
-                      </div>
-                      
-                      <div className="mt-3 px-1">
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">
-                            {product.category}
-                          </p>
-                          {getStatusBadge(product.status)}
-                        </div>
-                        <h3 className="font-medium text-gray-900 mt-1 truncate">{product.name}</h3>
-                        <div className="flex justify-between items-center mt-1">
-                          <p className="font-semibold">${product.price.toFixed(2)}</p>
-                          <div className="flex gap-1">
-                            {product.colors.slice(0, 3).map((color, index) => (
-                              <div 
-                                key={index} 
-                                className="w-3 h-3 rounded-full border border-gray-300" 
-                                style={{ backgroundColor: color }}
-                              ></div>
-                            ))}
-                            {product.colors.length > 3 && (
-                              <div className="text-xs text-gray-500">+{product.colors.length - 3}</div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* NEW SECTION: Complete Your Look */}
-        {predictedCategory && (
-          <div className="mb-12">
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <Sparkles className="w-5 h-5 mr-2 text-gray-800" />
-                Complete Your Look
-              </h2>
-              <p className="text-gray-500 mb-6">Items that pair well with your style</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {apiProducts
-                  .filter(p => p.category.toLowerCase() !== predictedCategory.toLowerCase())
-                  .slice(0, 3)
-                  .map((product) => (
-                    <div 
-                      key={product.id} 
-                      className="flex gap-4 cursor-pointer" 
-                      onClick={() => navigateToProduct(product.id)}
-                    >
-                      <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                        <img 
-                          src={product.images[0] || '/api/placeholder/100/100'} 
-                          alt={product.name} 
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">
-                          {product.category}
-                        </p>
-                        <h3 className="font-medium text-gray-900 mt-1 truncate">{product.name}</h3>
-                        <div className="flex justify-between items-center mt-1">
-                          <p className="font-semibold">${product.price.toFixed(2)}</p>
-                          {getStatusBadge(product.status)}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

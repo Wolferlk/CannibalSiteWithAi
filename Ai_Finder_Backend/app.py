@@ -4,6 +4,7 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
 import numpy as np
 from flask_cors import CORS
+from flask import send_from_directory
 
 app = Flask(__name__)
 CORS(app)
@@ -13,12 +14,15 @@ model = load_model('model/model.h5')
 
 # Define categories (update this based on your model training)
 CATEGORIES = [
-    'sunglasses', 'cap', 'mens_wallet', 'womens_wallet', 'handbag',
-    'backpack', 'oversized_tshirt', 'regular_fit_tshirt', 'polo_tshirt',
-    'shirt_long_sleeve', 'shirt_short_sleeve', 'crop_top', 'jeans',
-    'joggers', 'shorts_men', 'shorts_women', 'casual_dress', 'coord_sets',
-    'sneakers', 'sandals'
+    'backpack', 'cap', 'Casual', 'Handbag', 'hoodie',
+    'jeans', 'pants', 'polo_tshirt', 'shoes',
+    'shorts', 'skirt', 'tshirt'
 ]
+
+@app.route('/')
+def home():
+    return send_from_directory('.', 'index.html')
+
 
 @app.route('/upload', methods=['POST'])
 def upload():

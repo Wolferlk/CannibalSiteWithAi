@@ -74,8 +74,8 @@ history = model.fit(
 )
 
 # Save the model
-model.save("fashion_classifier_model.h5")
-print("✅ Model saved as 'fashion_classifier_model.h5'")
+model.save("model.h5")
+print("✅ Model saved as 'model.h5'")
 
 # Plot training results
 plt.plot(history.history['accuracy'], label="Train Acc")
